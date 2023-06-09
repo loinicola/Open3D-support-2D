@@ -38,6 +38,19 @@ void pybind_pointcloud(py::module &m) {
                  })
             .def(py::self + py::self)
             .def(py::self += py::self)
+            // Nicola's comment: TransformRigid2D and Transform2D 
+            // are not declared in Geometry3D.h together with the 
+            // original Transform function but in PointCloud.h 
+            // since they are not virtual functions 
+            // (they are not being overriden in other classes, 
+            // since I was interested in extra 2D functionalities 
+            // in PointCloud only)
+            .def("transform_rigid_2d", &PointCloud::TransformRigid2D,
+                 "Apply rigid transformation (4x4 matrix) to the geometry "
+                 "coordinates, but only in the x-y plane.") 
+            .def("transform_2d", &PointCloud::Transform2D,
+                 "Apply transformation (4x4 matrix) to the geometry "
+                 "coordinates, but only in the x-y plane.") 
             .def("has_points", &PointCloud::HasPoints,
                  "Returns ``True`` if the point cloud contains points.")
             .def("has_normals", &PointCloud::HasNormals,
@@ -146,12 +159,24 @@ void pybind_pointcloud(py::module &m) {
                  "distance to the target point cloud.",
                  "target"_a)
             .def_static(
+                    "estimate_point_2d_covariances",
+                    &PointCloud::EstimatePerPoint2DCovariances,
+                    "Static function to compute the covariance matrix for "
+                    "each "
+                    "point in the given point cloud considering the "
+                    "x,y coordinates only, doesn't change the input",
+                    "input"_a, "search_param"_a = KDTreeSearchParamKNN())
+            .def_static(
                     "estimate_point_covariances",
                     &PointCloud::EstimatePerPointCovariances,
                     "Static function to compute the covariance matrix for "
                     "each "
                     "point in the given point cloud, doesn't change the input",
                     "input"_a, "search_param"_a = KDTreeSearchParamKNN())
+            .def("estimate_2d_covariances", &PointCloud::Estimate2DCovariances,
+                 "Function to compute the covariance matrix for each point "
+                 "in the point cloud considering the x,y coordinates only",
+                 "search_param"_a = KDTreeSearchParamKNN())
             .def("estimate_covariances", &PointCloud::EstimateCovariances,
                  "Function to compute the covariance matrix for each point "
                  "in the point cloud",
@@ -257,6 +282,8 @@ camera. Given depth value d at (u, v) image coordinate, the corresponding 3d poi
                            "``float64`` array of shape ``(num_points, 3, 3)``, "
                            "use ``numpy.asarray()`` to access data: Points "
                            "covariances.");
+    docstring::ClassMethodDocInject(m, "PointCloud", "transform_rigid_2d");
+    docstring::ClassMethodDocInject(m, "PointCloud", "transform_2d");
     docstring::ClassMethodDocInject(m, "PointCloud", "has_colors");
     docstring::ClassMethodDocInject(m, "PointCloud", "has_normals");
     docstring::ClassMethodDocInject(m, "PointCloud", "has_points");

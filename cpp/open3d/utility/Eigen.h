@@ -113,6 +113,11 @@ Eigen::Vector3uint8 ColorToUint8(const Eigen::Vector3d &color);
 Eigen::Vector3d ColorToDouble(uint8_t r, uint8_t g, uint8_t b);
 Eigen::Vector3d ColorToDouble(const Eigen::Vector3uint8 &rgb);
 
+/// Function to compute the 2D covariance matrix of a set of points.
+template <typename IdxType>
+Eigen::Matrix3d Compute2DCovariance(const std::vector<Eigen::Vector3d> &points,
+                                  const std::vector<IdxType> &indices);
+
 /// Function to compute the covariance matrix of a set of points.
 template <typename IdxType>
 Eigen::Matrix3d ComputeCovariance(const std::vector<Eigen::Vector3d> &points,

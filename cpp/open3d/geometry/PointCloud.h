@@ -55,6 +55,21 @@ public:
             bool robust = false) const override;
     OrientedBoundingBox GetMinimalOrientedBoundingBox(
             bool robust = false) const override;
+            
+    // Nicola's comment: TransformRigid2D and Transform2D 
+    // are not declared in Geometry3D.h together with the 
+    // original Transform function but in PointCloud.h 
+    // since they are not virtual functions 
+    // (they are not being overriden in other classes, 
+    // since I was interested in extra 2D functionalities 
+    // in PointCloud only)
+
+    /// \brief Apply rigid transformation (4x4 matrix) to the geometry coordinates,
+    /// but only in the x,y plane.
+    PointCloud &TransformRigid2D(const Eigen::Matrix4d &transformation);
+    /// \brief Apply transformation (4x4 matrix) to the geometry coordinates,
+    /// but only in the x,y plane.
+    PointCloud &Transform2D(const Eigen::Matrix4d &transformation);
     PointCloud &Transform(const Eigen::Matrix4d &transformation) override;
     PointCloud &Translate(const Eigen::Vector3d &translation,
                           bool relative = true) override;
@@ -261,6 +276,27 @@ public:
     ///
     /// \param target The target point cloud.
     std::vector<double> ComputePointCloudDistance(const PointCloud &target);
+
+    /// \brief Static function to compute the 2D covariance matrix for each point
+    /// of a point cloud. Doesn't change the input PointCloud, just outputs the
+    /// covariance matrices.
+    ///
+    ///
+    /// \param input PointCloud to use for covariance computation \param
+    /// search_param The KDTree search parameters for neighborhood search.
+    static std::vector<Eigen::Matrix3d> EstimatePerPoint2DCovariances(
+            const PointCloud &input,
+            const KDTreeSearchParam &search_param = KDTreeSearchParamKNN());
+
+    /// \brief Function to compute the 2D covariance matrix for each point of a
+    /// point cloud.
+    ///
+    ///
+    /// \param search_param The KDTree search parameters for neighborhood
+    /// search.
+    void Estimate2DCovariances(
+            const KDTreeSearchParam &search_param = KDTreeSearchParamKNN());
+
 
     /// \brief Static function to compute the covariance matrix for each point
     /// of a point cloud. Doesn't change the input PointCloud, just outputs the

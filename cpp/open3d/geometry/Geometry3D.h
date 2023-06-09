@@ -144,6 +144,34 @@ protected:
 
     /// \brief Transforms all points with the transformation matrix.
     ///
+    /// \param transformation 3x3 matrix for transformation.
+    /// \param points A list of points to be transformed.
+    void TransformRigid2DPoints(const Eigen::Matrix3d& transformation,
+                         std::vector<Eigen::Vector3d>& points) const;
+                         
+    /// \brief Transforms all points with the transformation matrix.
+    ///
+    /// \param transformation 3x3 matrix for transformation.
+    /// \param points A list of points to be transformed.
+    void Transform2DPoints(const Eigen::Matrix3d& transformation,
+                         std::vector<Eigen::Vector3d>& points) const;
+
+    /// \brief Transforms the normals with the transformation matrix.
+    ///
+    /// \param transformation 3x3 matrix for transformation.
+    /// \param normals A list of normals to be transformed.
+    void Transform2DNormals(const Eigen::Matrix3d& transformation,
+                          std::vector<Eigen::Vector3d>& normals) const;
+
+    /// \brief Transforms all covariance matrices with the transformation.
+    ///
+    /// \param transformation 3x3 matrix for transformation.
+    /// \param covariances A list of covariance matrices to be transformed.
+    void Transform2DCovariances(const Eigen::Matrix3d& transformation,
+                              std::vector<Eigen::Matrix3d>& covariances) const;
+
+    /// \brief Transforms all points with the transformation matrix.
+    ///
     /// \param transformation 4x4 matrix for transformation.
     /// \param points A list of points to be transformed.
     void TransformPoints(const Eigen::Matrix4d& transformation,
@@ -200,6 +228,13 @@ protected:
     /// \param normals A list of normals to be transformed.
     void RotateNormals(const Eigen::Matrix3d& R,
                        std::vector<Eigen::Vector3d>& normals) const;
+
+    /// \brief Rotate all covariance matrices with the rotation matrix \p R.
+    ///
+    /// \param R A 2x2 rotation matrix
+    /// \param covariances A list of covariance matrices to be transformed.
+    void Rotate2DCovariances(const Eigen::Matrix2d& R,
+                           std::vector<Eigen::Matrix3d>& covariances) const;
 
     /// \brief Rotate all covariance matrices with the rotation matrix \p R.
     ///

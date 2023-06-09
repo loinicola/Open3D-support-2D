@@ -57,6 +57,32 @@ OrientedBoundingBox PointCloud::GetMinimalOrientedBoundingBox(
     return OrientedBoundingBox::CreateFromPointsMinimal(points_, robust);
 }
 
+PointCloud &PointCloud::TransformRigid2D(const Eigen::Matrix4d &transformation) {
+    Eigen::Matrix3d transformation_2d;
+    transformation_2d.block<2, 2>(0, 0) =
+            transformation.block<2, 2>(0, 0);
+    transformation_2d.block<2, 1>(0, 2) =
+            transformation.block<2, 1>(0, 3);
+    transformation_2d.block<1, 3>(2, 0) << Eigen::Array3d(0.0, 0.0, 1.0);
+    TransformRigid2DPoints(transformation_2d, points_);
+    Transform2DNormals(transformation_2d, normals_);
+    Transform2DCovariances(transformation_2d, covariances_);
+    return *this;
+}
+
+PointCloud &PointCloud::Transform2D(const Eigen::Matrix4d &transformation) {
+    Eigen::Matrix3d transformation_2d;
+    transformation_2d.block<2, 2>(0, 0) =
+            transformation.block<2, 2>(0, 0);
+    transformation_2d.block<2, 1>(0, 2) =
+            transformation.block<2, 1>(0, 3);
+    transformation_2d.block<1, 3>(2, 0) << Eigen::Array3d(0.0, 0.0, 1.0);
+    Transform2DPoints(transformation_2d, points_);
+    Transform2DNormals(transformation_2d, normals_);
+    Transform2DCovariances(transformation_2d, covariances_);
+    return *this;
+}
+
 PointCloud &PointCloud::Transform(const Eigen::Matrix4d &transformation) {
     TransformPoints(transformation, points_);
     TransformNormals(transformation, normals_);
@@ -652,6 +678,50 @@ PointCloud::RemoveStatisticalOutliers(size_t nb_neighbors,
         }
     }
     return std::make_tuple(SelectByIndex(indices), indices);
+}
+
+std::vector<Eigen::Matrix3d> PointCloud::EstimatePerPoint2DCovariances(
+        const PointCloud &input,
+        const KDTreeSearchParam &search_param /* = KDTreeSearchParamKNN()*/) {
+    const auto &points = input.points_;
+    std::vector<Eigen::Matrix3d> covariances;
+    covariances.resize(points.size());
+
+    KDTreeFlann kdtree;
+    kdtree.SetGeometry(input);
+    if (input.HasCovariances()){
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < (int)points.size(); i++) {
+            std::vector<int> indices;
+            std::vector<double> distance2;
+            if (kdtree.Search(points[i], search_param, indices, distance2) >= 2) {
+                auto covariance = utility::Compute2DCovariance(points, indices);
+                if (covariance.isIdentity(1e-4)) {
+                    covariances[i] = input.covariances_[i];
+                } else {
+                    covariances[i] = covariance;
+                }
+            } else {
+                covariances[i] = Eigen::Matrix3d::Identity();
+            }
+        }
+    } else {
+        #pragma omp parallel for schedule(static)
+        for (int i = 0; i < (int)points.size(); i++) {
+            std::vector<int> indices;
+            std::vector<double> distance2;
+            if (kdtree.Search(points[i], search_param, indices, distance2) >= 2) {
+                covariances[i] = utility::Compute2DCovariance(points, indices);                
+            } else {
+                covariances[i] = Eigen::Matrix3d::Identity();
+            }
+        }
+    }
+    return covariances;
+}
+void PointCloud::Estimate2DCovariances(
+        const KDTreeSearchParam &search_param /* = KDTreeSearchParamKNN()*/) {
+    this->covariances_ = EstimatePerPoint2DCovariances(*this, search_param);
 }
 
 std::vector<Eigen::Matrix3d> PointCloud::EstimatePerPointCovariances(

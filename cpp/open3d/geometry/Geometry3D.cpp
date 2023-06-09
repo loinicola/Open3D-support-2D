@@ -11,6 +11,7 @@
 #include <numeric>
 
 #include "open3d/utility/Logging.h"
+#include "Geometry3D.h"
 
 namespace open3d {
 namespace geometry {
@@ -74,6 +75,26 @@ void Geometry3D::ResizeAndPaintUniformColor(
     }
 }
 
+void Geometry3D::TransformRigid2DPoints(const Eigen::Matrix3d& transformation,
+                                 std::vector<Eigen::Vector3d>& points) const {
+    for (auto& point : points) {
+        Eigen::Vector3d new_point =
+                transformation *
+                Eigen::Vector3d(point(0), point(1), 1.0);
+        point.head<2>() = new_point.head<2>();
+    }
+}
+
+void Geometry3D::Transform2DPoints(const Eigen::Matrix3d& transformation,
+                                 std::vector<Eigen::Vector3d>& points) const {
+    for (auto& point : points) {
+        Eigen::Vector3d new_point =
+                transformation *
+                Eigen::Vector3d(point(0), point(1), 1.0);
+        point.head<2>() = new_point.head<2>() / new_point(2);
+    }
+}
+
 void Geometry3D::TransformPoints(const Eigen::Matrix4d& transformation,
                                  std::vector<Eigen::Vector3d>& points) const {
     for (auto& point : points) {
@@ -81,6 +102,16 @@ void Geometry3D::TransformPoints(const Eigen::Matrix4d& transformation,
                 transformation *
                 Eigen::Vector4d(point(0), point(1), point(2), 1.0);
         point = new_point.head<3>() / new_point(3);
+    }
+}
+
+void Geometry3D::Transform2DNormals(const Eigen::Matrix3d& transformation,
+                                  std::vector<Eigen::Vector3d>& normals) const {
+    for (auto& normal : normals) {
+        Eigen::Vector3d new_normal =
+                transformation *
+                Eigen::Vector3d(normal(0), normal(1), 0.0);
+        normal.head<2>() = new_normal.head<2>();
     }
 }
 
@@ -92,6 +123,12 @@ void Geometry3D::TransformNormals(const Eigen::Matrix4d& transformation,
                 Eigen::Vector4d(normal(0), normal(1), normal(2), 0.0);
         normal = new_normal.head<3>();
     }
+}
+
+void Geometry3D::Transform2DCovariances(
+        const Eigen::Matrix3d& transformation,
+        std::vector<Eigen::Matrix3d>& covariances) const {
+    Rotate2DCovariances(transformation.block<2, 2>(0, 0), covariances);
 }
 
 void Geometry3D::TransformCovariances(
@@ -132,6 +169,17 @@ void Geometry3D::RotateNormals(const Eigen::Matrix3d& R,
                                std::vector<Eigen::Vector3d>& normals) const {
     for (auto& normal : normals) {
         normal = R * normal;
+    }
+}
+
+/// The only part that affects the covariance is the rotation part. For more
+/// information on variance propagation please visit:
+/// https://en.wikipedia.org/wiki/Propagation_of_uncertainty
+void Geometry3D::Rotate2DCovariances(
+        const Eigen::Matrix2d& R,
+        std::vector<Eigen::Matrix3d>& covariances) const {
+    for (auto& covariance : covariances) {
+        covariance.block<2,2>(0,0) = R * covariance.block<2,2>(0,0) * R.transpose();
     }
 }
 

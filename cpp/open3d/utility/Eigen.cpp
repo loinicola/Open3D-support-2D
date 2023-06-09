@@ -283,6 +283,31 @@ Eigen::Vector3d ColorToDouble(const Eigen::Vector3uint8 &rgb) {
 }
 
 template <typename IdxType>
+Eigen::Matrix3d Compute2DCovariance(const std::vector<Eigen::Vector3d> &points,
+                                  const std::vector<IdxType> &indices) {
+    if (indices.empty()) {
+        return Eigen::Matrix3d::Identity();
+    }
+    Eigen::Matrix3d covariance = Eigen::Matrix3d::Zero();
+    Eigen::Matrix<double, 5, 1> cumulants;
+    cumulants.setZero();
+    for (const auto &idx : indices) {
+        const Eigen::Vector3d &point = points[idx];
+        cumulants(0) += point(0);
+        cumulants(1) += point(1);
+        cumulants(2) += point(0) * point(0);
+        cumulants(3) += point(0) * point(1);
+        cumulants(4) += point(1) * point(1);
+    }
+    cumulants /= (double)indices.size();
+    covariance(0, 0) = cumulants(2) - cumulants(0) * cumulants(0);
+    covariance(1, 1) = cumulants(4) - cumulants(1) * cumulants(1);
+    covariance(0, 1) = cumulants(3) - cumulants(0) * cumulants(1);
+    covariance(1, 0) = covariance(0, 1);
+    return covariance;
+}
+
+template <typename IdxType>
 Eigen::Matrix3d ComputeCovariance(const std::vector<Eigen::Vector3d> &points,
                                   const std::vector<IdxType> &indices) {
     if (indices.empty()) {
@@ -352,12 +377,18 @@ std::tuple<Eigen::Vector3d, Eigen::Matrix3d> ComputeMeanAndCovariance(
     return std::make_tuple(mean, covariance);
 }
 
+template Eigen::Matrix3d Compute2DCovariance(
+        const std::vector<Eigen::Vector3d> &points,
+        const std::vector<size_t> &indices);
 template Eigen::Matrix3d ComputeCovariance(
         const std::vector<Eigen::Vector3d> &points,
         const std::vector<size_t> &indices);
 template std::tuple<Eigen::Vector3d, Eigen::Matrix3d> ComputeMeanAndCovariance(
         const std::vector<Eigen::Vector3d> &points,
         const std::vector<size_t> &indices);
+template Eigen::Matrix3d Compute2DCovariance(
+        const std::vector<Eigen::Vector3d> &points,
+        const std::vector<int> &indices);
 template Eigen::Matrix3d ComputeCovariance(
         const std::vector<Eigen::Vector3d> &points,
         const std::vector<int> &indices);
