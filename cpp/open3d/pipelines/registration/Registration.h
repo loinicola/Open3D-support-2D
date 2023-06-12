@@ -137,6 +137,25 @@ RegistrationResult EvaluateRegistration(
         double max_correspondence_distance,
         const Eigen::Matrix4d &transformation = Eigen::Matrix4d::Identity());
 
+/// \brief Functions for 2D ICP registration.
+///
+/// \param source The source point cloud.
+/// \param target The target point cloud.
+/// \param max_correspondence_distance Maximum correspondence points-pair
+/// distance. \param init Initial transformation estimation.
+///  Default value: array([[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.],
+///  [0., 0., 0., 1.]])
+/// \param estimation Estimation method.
+/// \param criteria Convergence criteria.
+RegistrationResult Registration2DICP(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        double max_correspondence_distance,
+        const Eigen::Matrix4d &init = Eigen::Matrix4d::Identity(),
+        const TransformationEstimation &estimation =
+               TransformationEstimationPointToPoint(false),
+        const ICPConvergenceCriteria &criteria = ICPConvergenceCriteria());
+
 /// \brief Functions for ICP registration.
 ///
 /// \param source The source point cloud.
@@ -208,6 +227,17 @@ RegistrationResult RegistrationRANSACBasedOnFeatureMatching(
                 &checkers = {},
         const RANSACConvergenceCriteria &criteria =
                 RANSACConvergenceCriteria());
+
+/// \param source The source point cloud.
+/// \param target The target point cloud.
+/// \param max_correspondence_distance Maximum correspondence points-pair
+/// distance. \param transformation The 4x4 transformation matrix to transform
+/// `source` to `target`.
+Eigen::Matrix6d GetInformationMatrixFrom2DPointClouds(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        double max_correspondence_distance,
+        const Eigen::Matrix4d &transformation);
 
 /// \param source The source point cloud.
 /// \param target The target point cloud.

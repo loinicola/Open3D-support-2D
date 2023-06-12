@@ -71,6 +71,15 @@ std::tuple<bool, Eigen::VectorXd> SolveLinearSystemPSD(
     return std::make_tuple(true, std::move(x));
 }
 
+Eigen::Matrix4d TransformVector3dToMatrix4d(const Eigen::Vector3d &input) {
+    Eigen::Matrix4d output;
+    output.setIdentity();
+    output.block<3, 3>(0, 0) =
+            (Eigen::AngleAxisd(input(0), Eigen::Vector3d::UnitZ())).matrix();
+    output.block<2, 1>(0, 3) = input.block<2, 1>(1, 0);
+    return output;
+}
+
 Eigen::Matrix4d TransformVector6dToMatrix4d(const Eigen::Vector6d &input) {
     Eigen::Matrix4d output;
     output.setIdentity();
@@ -98,6 +107,18 @@ Eigen::Vector6d TransformMatrix4dToVector6d(const Eigen::Matrix4d &input) {
     }
     output.block<3, 1>(3, 0) = input.block<3, 1>(0, 3);
     return output;
+}
+
+std::tuple<bool, Eigen::Matrix4d> Solve2DJacobianSystemAndObtainExtrinsicMatrix(
+        const Eigen::Matrix3d &JTJ, const Eigen::Vector3d &JTr) {
+    bool solution_exist;
+    Eigen::Vector3d x;
+    std::tie(solution_exist, x) = SolveLinearSystemPSD(JTJ, -JTr);
+    if (solution_exist) {
+        Eigen::Matrix4d extrinsic = TransformVector3dToMatrix4d(x);
+        return std::make_tuple(solution_exist, std::move(extrinsic));   
+    }
+    return std::make_tuple(false, Eigen::Matrix4d::Identity());
 }
 
 std::tuple<bool, Eigen::Matrix4d> SolveJacobianSystemAndObtainExtrinsicMatrix(
@@ -232,6 +253,17 @@ std::tuple<MatType, VecType, double> ComputeJTJandJTr(
 }
 
 // clang-format off
+template std::tuple<Eigen::Matrix3d, Eigen::Vector3d, double> ComputeJTJandJTr(
+        std::function<void(int, Eigen::Vector3d &, double &, double &)> f,
+        int iteration_num, bool verbose);
+
+template std::tuple<Eigen::Matrix3d, Eigen::Vector3d, double> ComputeJTJandJTr(
+        std::function<void(int,
+                           std::vector<Eigen::Vector3d, Vector3d_allocator> &,
+                           std::vector<double> &,
+                           std::vector<double> &)> f,
+        int iteration_num, bool verbose);
+
 template std::tuple<Eigen::Matrix6d, Eigen::Vector6d, double> ComputeJTJandJTr(
         std::function<void(int, Eigen::Vector6d &, double &, double &)> f,
         int iteration_num, bool verbose);

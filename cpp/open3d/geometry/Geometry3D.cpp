@@ -78,10 +78,16 @@ void Geometry3D::ResizeAndPaintUniformColor(
 void Geometry3D::TransformRigid2DPoints(const Eigen::Matrix3d& transformation,
                                  std::vector<Eigen::Vector3d>& points) const {
     for (auto& point : points) {
-        Eigen::Vector3d new_point =
-                transformation *
-                Eigen::Vector3d(point(0), point(1), 1.0);
-        point.head<2>() = new_point.head<2>();
+        // Eigen::Vector3d new_point =
+        //         transformation *
+        //         Eigen::Vector3d(point(0), point(1), 1.0);
+        // point.head<2>() = new_point.head<2>();
+        point.head<2>() = Eigen::Vector2d(transformation(0, 0) * point(0) + 
+                                          transformation(0, 1) * point(1) + 
+                                          transformation(0, 2),
+                                          transformation(1, 0) * point(0) + 
+                                          transformation(1, 1) * point(1) + 
+                                          transformation(1, 2));
     }
 }
 
@@ -108,10 +114,14 @@ void Geometry3D::TransformPoints(const Eigen::Matrix4d& transformation,
 void Geometry3D::Transform2DNormals(const Eigen::Matrix3d& transformation,
                                   std::vector<Eigen::Vector3d>& normals) const {
     for (auto& normal : normals) {
-        Eigen::Vector3d new_normal =
-                transformation *
-                Eigen::Vector3d(normal(0), normal(1), 0.0);
-        normal.head<2>() = new_normal.head<2>();
+        // Eigen::Vector3d new_normal =
+        //         transformation *
+        //         Eigen::Vector3d(normal(0), normal(1), 0.0);
+        // normal.head<2>() = new_normal.head<2>();
+        normal.head<2>() = Eigen::Vector2d(transformation(0, 0) * normal(0) + 
+                                           transformation(0, 1) * normal(1),
+                                           transformation(1, 0) * normal(0) + 
+                                           transformation(1, 1) * normal(1));
     }
 }
 

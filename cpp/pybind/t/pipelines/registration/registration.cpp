@@ -251,7 +251,8 @@ static const std::unordered_map<std::string, std::string>
                  "(``TransformationEstimationPointToPoint``, "
                  "``TransformationEstimationPointToPlane``, "
                  "``TransformationEstimationForColoredICP``, "
-                 "``TransformationEstimationForGeneralizedICP``)"},
+                 "``TransformationEstimationForGeneralizedICP``, "
+                 "``TransformationEstimationFor2DGeneralizedICP``)"},
                 {"init_source_to_target", "Initial transformation estimation"},
                 {"max_correspondence_distance",
                  "Maximum correspondence points-pair distance."},

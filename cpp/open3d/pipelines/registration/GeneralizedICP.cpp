@@ -162,6 +162,99 @@ RegistrationResult RegistrationGeneralizedICP(
             max_correspondence_distance, init, estimation, criteria);
 }
 
+
+
+
+
+
+double TransformationEstimationFor2DGeneralizedICP::ComputeRMSE(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        const CorrespondenceSet &corres) const {
+    if (corres.empty()) {
+        return 0.0;
+    }
+    double err = 0.0;
+    for (const auto &c : corres) {
+        const Eigen::Vector2d &vs = source.points_[c[0]].head(2);
+        const Eigen::Matrix2d &Cs = source.covariances_[c[0]].block<2, 2>(0, 0);
+        const Eigen::Vector2d &vt = target.points_[c[1]].head(2);
+        const Eigen::Matrix2d &Ct = target.covariances_[c[1]].block<2, 2>(0, 0);
+        const Eigen::Vector2d d = vs - vt;
+        const Eigen::Matrix2d M = Ct + Cs;
+        const Eigen::Matrix2d W = M.inverse().sqrt();
+        err += d.transpose() * W * d;
+    }
+    return std::sqrt(err / (double)corres.size());
+}
+
+Eigen::Matrix4d
+TransformationEstimationFor2DGeneralizedICP::ComputeTransformation(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        const CorrespondenceSet &corres) const {
+    if (corres.empty() || !target.HasCovariances() ||
+        !source.HasCovariances()) {
+        return Eigen::Matrix4d::Identity();
+    }
+
+    auto compute_jacobian_and_residual =
+            [&](int i,
+                std::vector<Eigen::Vector3d, utility::Vector3d_allocator> &J_r,
+                std::vector<double> &r, std::vector<double> &w) {
+                const Eigen::Vector2d &vs = source.points_[corres[i][0]].head(2);
+                const Eigen::Matrix2d &Cs = source.covariances_[corres[i][0]].block<2, 2>(0, 0);
+                const Eigen::Vector2d &vt = target.points_[corres[i][1]].head(2);
+                const Eigen::Matrix2d &Ct = target.covariances_[corres[i][1]].block<2, 2>(0, 0);
+                const Eigen::Vector2d d = vs - vt;
+                const Eigen::Matrix2d M = Ct + Cs;
+                const Eigen::Matrix2d W = M.inverse().sqrt();
+
+                Eigen::Matrix<double, 2, 3> J;
+                J.block<2, 1>(0, 0) = Eigen::Vector2d(-vs[1]*W(0,0) + vs[0]*W(0,1), -vs[1]*W(1,0) + vs[0]*W(1,1));
+                J.block<2, 2>(0, 1) = W;
+                // J = W * J;
+
+                constexpr int n_rows = 2;
+                J_r.resize(n_rows);
+                r.resize(n_rows);
+                w.resize(n_rows);
+                for (size_t i = 0; i < n_rows; ++i) {
+                    r[i] = W.row(i).dot(d);
+                    w[i] = kernel_->Weight(r[i]);
+                    J_r[i] = J.row(i);
+                }
+            };
+
+    Eigen::Matrix3d JTJ;
+    Eigen::Vector3d JTr;
+    double r2 = -1.0;
+    std::tie(JTJ, JTr, r2) =
+            utility::ComputeJTJandJTr<Eigen::Matrix3d, Eigen::Vector3d>(
+                    compute_jacobian_and_residual, (int)corres.size());
+
+    bool is_success = false;
+    Eigen::Matrix4d extrinsic;
+    std::tie(is_success, extrinsic) =
+            utility::Solve2DJacobianSystemAndObtainExtrinsicMatrix(JTJ, JTr);
+    return is_success ? extrinsic : Eigen::Matrix4d::Identity();
+}
+
+RegistrationResult Registration2DGeneralizedICP(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        double max_correspondence_distance,
+        const Eigen::Matrix4d &init /* = Eigen::Matrix4d::Identity()*/,
+        const TransformationEstimationFor2DGeneralizedICP
+                &estimation /* = TransformationEstimationFor2DGeneralizedICP()*/,
+        const ICPConvergenceCriteria
+                &criteria /* = ICPConvergenceCriteria()*/) {
+    return RegistrationICP(
+            *InitializePointCloudForGeneralizedICP(source, estimation.epsilon_),
+            *InitializePointCloudForGeneralizedICP(target, estimation.epsilon_),
+            max_correspondence_distance, init, estimation, criteria);
+}
+
 }  // namespace registration
 }  // namespace pipelines
 }  // namespace open3d

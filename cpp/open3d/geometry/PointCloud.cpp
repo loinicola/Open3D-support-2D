@@ -58,15 +58,41 @@ OrientedBoundingBox PointCloud::GetMinimalOrientedBoundingBox(
 }
 
 PointCloud &PointCloud::TransformRigid2D(const Eigen::Matrix4d &transformation) {
-    Eigen::Matrix3d transformation_2d;
-    transformation_2d.block<2, 2>(0, 0) =
-            transformation.block<2, 2>(0, 0);
-    transformation_2d.block<2, 1>(0, 2) =
-            transformation.block<2, 1>(0, 3);
-    transformation_2d.block<1, 3>(2, 0) << Eigen::Array3d(0.0, 0.0, 1.0);
-    TransformRigid2DPoints(transformation_2d, points_);
-    Transform2DNormals(transformation_2d, normals_);
-    Transform2DCovariances(transformation_2d, covariances_);
+
+    Eigen::Vector2d translation_2d = transformation.block<2, 1>(0, 3);
+    Eigen::Matrix2d rotation_2d = transformation.block<2, 2>(0, 0);
+    Eigen::Matrix2d rotation_2d_transpose = rotation_2d.transpose();
+
+    // TransformRigid2DPoints(transformation_2d, points_);
+    for (auto& point : points_) {
+        // Eigen::Vector3d new_point =
+        //         transformation *
+        //         Eigen::Vector3d(point(0), point(1), 1.0);
+        // point.head<2>() = new_point.head<2>();
+        point.head<2>() = Eigen::Vector2d(rotation_2d(0, 0) * point(0) + 
+                                          rotation_2d(0, 1) * point(1) + 
+                                          translation_2d(0),
+                                          rotation_2d(1, 0) * point(0) + 
+                                          rotation_2d(1, 1) * point(1) + 
+                                          translation_2d(1));
+    }
+
+    // Transform2DNormals(transformation_2d, normals_);
+    for (auto& normal : normals_) {
+        // Eigen::Vector3d new_normal =
+        //         transformation *
+        //         Eigen::Vector3d(normal(0), normal(1), 0.0);
+        // normal.head<2>() = new_normal.head<2>();
+        normal.head<2>() = Eigen::Vector2d(rotation_2d(0, 0) * normal(0) + 
+                                           rotation_2d(0, 1) * normal(1),
+                                           rotation_2d(1, 0) * normal(0) + 
+                                           rotation_2d(1, 1) * normal(1));
+    }
+
+    // Transform2DCovariances(transformation_2d, covariances_);
+    for (auto& covariance : covariances_) {
+        covariance.block<2,2>(0,0) = rotation_2d * covariance.block<2,2>(0,0) * rotation_2d_transpose;
+    }
     return *this;
 }
 

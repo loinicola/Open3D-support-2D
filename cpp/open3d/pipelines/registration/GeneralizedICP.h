@@ -63,6 +63,49 @@ private:
             TransformationEstimationType::GeneralizedICP;
 };
 
+
+
+
+class TransformationEstimationFor2DGeneralizedICP
+    : public TransformationEstimation {
+public:
+    ~TransformationEstimationFor2DGeneralizedICP() override = default;
+
+    TransformationEstimationType GetTransformationEstimationType()
+            const override {
+        return type_;
+    };
+    /// \brief Constructor that takes as input a RobustKernel.
+    /// \param kernel Any of the implemented statistical robust kernel for
+    /// outlier rejection.
+    explicit TransformationEstimationFor2DGeneralizedICP(
+            double epsilon = 1e-3,
+            std::shared_ptr<RobustKernel> kernel = std::make_shared<L2Loss>())
+        : epsilon_(epsilon), kernel_(std::move(kernel)) {}
+
+public:
+    double ComputeRMSE(const geometry::PointCloud &source,
+                       const geometry::PointCloud &target,
+                       const CorrespondenceSet &corres) const override;
+
+    Eigen::Matrix4d ComputeTransformation(
+            const geometry::PointCloud &source,
+            const geometry::PointCloud &target,
+            const CorrespondenceSet &corres) const override;
+
+public:
+    /// Small constant representing covariance along the normal.
+    double epsilon_ = 1e-3;
+
+    /// shared_ptr to an Abstract RobustKernel that could mutate at runtime.
+    std::shared_ptr<RobustKernel> kernel_ = std::make_shared<L2Loss>();
+
+private:
+    const TransformationEstimationType type_ =
+            TransformationEstimationType::Generalized2DICP;
+};
+
+
 /// \brief Function for Generalized ICP registration.
 ///
 /// This is implementation of following paper
@@ -82,6 +125,16 @@ RegistrationResult RegistrationGeneralizedICP(
         const Eigen::Matrix4d &init = Eigen::Matrix4d::Identity(),
         const TransformationEstimationForGeneralizedICP &estimation =
                 TransformationEstimationForGeneralizedICP(),
+        const ICPConvergenceCriteria &criteria = ICPConvergenceCriteria());
+
+
+RegistrationResult Registration2DGeneralizedICP(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        double max_correspondence_distance,
+        const Eigen::Matrix4d &init = Eigen::Matrix4d::Identity(),
+        const TransformationEstimationFor2DGeneralizedICP &estimation =
+                TransformationEstimationFor2DGeneralizedICP(),
         const ICPConvergenceCriteria &criteria = ICPConvergenceCriteria());
 
 }  // namespace registration

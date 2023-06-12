@@ -105,6 +105,65 @@ RegistrationResult EvaluateRegistration(
             pcd, target, kdtree, max_correspondence_distance, transformation);
 }
 
+RegistrationResult Registration2DICP(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        double max_correspondence_distance,
+        const Eigen::Matrix4d &init /* = Eigen::Matrix4d::Identity()*/,
+        const TransformationEstimation &estimation
+        /* = TransformationEstimationPointToPoint(false)*/,
+        const ICPConvergenceCriteria
+                &criteria /* = ICPConvergenceCriteria()*/) {
+    if (max_correspondence_distance <= 0.0) {
+        utility::LogError("Invalid max_correspondence_distance.");
+    }
+
+    if (estimation.GetTransformationEstimationType() !=
+         TransformationEstimationType::Generalized2DICP) {
+        utility::LogError(
+                "TransformationEstimationFor2DICP is currently supporting "
+                "Generalized2DICP only.");
+         }
+    if ((estimation.GetTransformationEstimationType() ==
+         TransformationEstimationType::Generalized2DICP) &&
+        (!target.HasCovariances() || !source.HasCovariances())) {
+        utility::LogError(
+                "TransformationEstimationFor2DGeneralizedICP require "
+                "pre-computed per point covariances matrices for source and "
+                "target PointCloud.");
+    }
+
+    Eigen::Matrix4d transformation = init;
+    geometry::KDTreeFlann kdtree;
+    kdtree.SetGeometry(target);
+    geometry::PointCloud pcd = source;
+    if (!init.isIdentity()) {
+        pcd.TransformRigid2D(init);
+    }
+    RegistrationResult result;
+    result = GetRegistrationResultAndCorrespondences(
+            pcd, target, kdtree, max_correspondence_distance, transformation);
+    for (int i = 0; i < criteria.max_iteration_; i++) {
+        utility::LogDebug("ICP Iteration #{:d}: Fitness {:.4f}, RMSE {:.4f}", i,
+                          result.fitness_, result.inlier_rmse_);
+        Eigen::Matrix4d update = estimation.ComputeTransformation(
+                pcd, target, result.correspondence_set_);
+        transformation = update * transformation;
+        pcd.TransformRigid2D(update);
+        RegistrationResult backup = result;
+        result = GetRegistrationResultAndCorrespondences(
+                pcd, target, kdtree, max_correspondence_distance,
+                transformation);
+        if (std::abs(backup.fitness_ - result.fitness_) <
+                    criteria.relative_fitness_ &&
+            std::abs(backup.inlier_rmse_ - result.inlier_rmse_) <
+                    criteria.relative_rmse_) {
+            break;
+        }
+    }
+    return result;
+}
+
 RegistrationResult RegistrationICP(
         const geometry::PointCloud &source,
         const geometry::PointCloud &target,
@@ -127,11 +186,13 @@ RegistrationResult RegistrationICP(
                 "TransformationEstimationColoredICP "
                 "require pre-computed normal vectors for target PointCloud.");
     }
-    if ((estimation.GetTransformationEstimationType() ==
-         TransformationEstimationType::GeneralizedICP) &&
+    if (((estimation.GetTransformationEstimationType() ==
+         TransformationEstimationType::GeneralizedICP) ||
+         (estimation.GetTransformationEstimationType() ==
+         TransformationEstimationType::Generalized2DICP)) &&
         (!target.HasCovariances() || !source.HasCovariances())) {
         utility::LogError(
-                "TransformationEstimationForGeneralizedICP require "
+                "TransformationEstimationFor2DGeneralizedICP require "
                 "pre-computed per point covariances matrices for source and "
                 "target PointCloud.");
     }
@@ -352,6 +413,62 @@ RegistrationResult RegistrationRANSACBasedOnFeatureMatching(
     return RegistrationRANSACBasedOnCorrespondence(
             source, target, corres_ij, max_correspondence_distance, estimation,
             ransac_n, checkers, criteria);
+}
+
+Eigen::Matrix6d GetInformationMatrixFrom2DPointClouds(
+        const geometry::PointCloud &source,
+        const geometry::PointCloud &target,
+        double max_correspondence_distance,
+        const Eigen::Matrix4d &transformation) {
+    geometry::PointCloud pcd = source;
+    if (!transformation.isIdentity()) {
+        pcd.TransformRigid2D(transformation);
+    }
+    RegistrationResult result;
+    geometry::KDTreeFlann target_kdtree(target);
+    result = GetRegistrationResultAndCorrespondences(
+            pcd, target, target_kdtree, max_correspondence_distance,
+            transformation);
+
+    // write q^*
+    // see http://redwood-data.org/indoor/registration.html
+    // note: I comes first in this implementation
+    Eigen::Matrix6d GTG = Eigen::Matrix6d::Zero();
+#pragma omp parallel
+    {
+        Eigen::Matrix6d GTG_private = Eigen::Matrix6d::Zero();
+        Eigen::Matrix6d GTG_temp_private = Eigen::Matrix6d::Zero();
+#pragma omp for nowait
+        for (int c = 0; c < int(result.correspondence_set_.size()); c++) {
+            int t = result.correspondence_set_[c](1);
+            double x = target.points_[t](0);
+            double y = target.points_[t](1);
+
+            GTG_temp_private.setZero();
+            GTG_temp_private(0,0) = y * y;
+            GTG_temp_private(0,1) = -x * y;
+            GTG_temp_private(0,5) = y;
+            GTG_temp_private(1,0) = GTG_temp_private(0,1);
+            GTG_temp_private(1,1) = x * x;
+            GTG_temp_private(1,5) = -x;
+            GTG_temp_private(2,2) = GTG_temp_private(0,0) + GTG_temp_private(1,1);
+            GTG_temp_private(2,3) = -y;
+            GTG_temp_private(2,4) = x;
+            GTG_temp_private(3,2) = GTG_temp_private(2,3);
+            GTG_temp_private(3,3) = 1.0;
+            GTG_temp_private(4,2) = GTG_temp_private(2,4);
+            GTG_temp_private(4,4) = 1.0;
+            GTG_temp_private(5,0) = GTG_temp_private(0,5);
+            GTG_temp_private(5,1) = GTG_temp_private(1,5);
+            GTG_temp_private(5,5) = 1.0;
+
+            GTG_private.noalias() += GTG_temp_private;
+
+        }
+#pragma omp critical(GetInformationMatrixFrom2DPointClouds)
+        { GTG += GTG_private; }
+    }
+    return GTG;
 }
 
 Eigen::Matrix6d GetInformationMatrixFromPointClouds(

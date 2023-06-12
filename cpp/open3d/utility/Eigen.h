@@ -16,7 +16,9 @@
 namespace Eigen {
 
 /// Extending Eigen namespace by adding frequently used matrix type
+typedef Eigen::Matrix<double, 3, 3> Matrix3d;
 typedef Eigen::Matrix<double, 6, 6> Matrix6d;
+typedef Eigen::Matrix<double, 3, 1> Vector3d;
 typedef Eigen::Matrix<double, 6, 1> Vector6d;
 typedef Eigen::Matrix<uint8_t, 3, 1> Vector3uint8;
 
@@ -36,11 +38,15 @@ using Matrix6d_allocator = Eigen::aligned_allocator<Eigen::Matrix6d>;
 using Vector2d_allocator = Eigen::aligned_allocator<Eigen::Vector2d>;
 using Vector3uint8_allocator = Eigen::aligned_allocator<Eigen::Vector3uint8>;
 using Vector4i_allocator = Eigen::aligned_allocator<Eigen::Vector4i>;
+using Vector3d_allocator = Eigen::aligned_allocator<Eigen::Vector3d>;
 using Vector4d_allocator = Eigen::aligned_allocator<Eigen::Vector4d>;
 using Vector6d_allocator = Eigen::aligned_allocator<Eigen::Vector6d>;
 
 /// Genretate a skew-symmetric matrix from a vector 3x1.
 Eigen::Matrix3d SkewMatrix(const Eigen::Vector3d &vec);
+
+/// Function to transform 3D motion vector to 4D motion matrix
+Eigen::Matrix4d TransformVector3dToMatrix4d(const Eigen::Vector3d &input);
 
 /// Function to transform 6D motion vector to 4D motion matrix
 /// Reference:
@@ -62,6 +68,12 @@ std::tuple<bool, Eigen::VectorXd> SolveLinearSystemPSD(
         bool check_symmetric = false,
         bool check_det = false,
         bool check_psd = false);
+
+/// Function to solve Jacobian system
+/// Input: 3x3 Jacobian matrix and 3-dim residual vector.
+/// Output: tuple of is_success, 4x4 extrinsic matrices.
+std::tuple<bool, Eigen::Matrix4d> Solve2DJacobianSystemAndObtainExtrinsicMatrix(
+        const Eigen::Matrix3d &JTJ, const Eigen::Vector3d &JTr);
 
 /// Function to solve Jacobian system
 /// Input: 6x6 Jacobian matrix and 6-dim residual vector.

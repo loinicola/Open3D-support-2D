@@ -315,6 +315,49 @@ Sets :math:`c = 1` if ``with_scaling`` is ``False``.
                            &TransformationEstimationForGeneralizedICP::kernel_,
                            "Robust Kernel used in the Optimization");
 
+    // open3d.registration.TransformationEstimationFor2DGeneralizedICP:
+    // TransformationEstimation
+    py::class_<TransformationEstimationFor2DGeneralizedICP,
+               PyTransformationEstimation<
+                       TransformationEstimationFor2DGeneralizedICP>,
+               TransformationEstimation>
+            te_2d_gicp(m, "TransformationEstimationFor2DGeneralizedICP",
+                    "Class to estimate a transformation for 2D Generalized ICP.");
+    py::detail::bind_default_constructor<
+            TransformationEstimationFor2DGeneralizedICP>(te_2d_gicp);
+    py::detail::bind_copy_functions<TransformationEstimationFor2DGeneralizedICP>(
+            te_2d_gicp);
+    te_2d_gicp.def(py::init([](double epsilon,
+                            std::shared_ptr<RobustKernel> kernel) {
+                    return new TransformationEstimationFor2DGeneralizedICP(
+                            epsilon, std::move(kernel));
+                }),
+                "epsilon"_a, "kernel"_a)
+            .def(py::init([](double epsilon) {
+                     return new TransformationEstimationFor2DGeneralizedICP(
+                             epsilon);
+                 }),
+                 "epsilon"_a)
+            .def(py::init([](std::shared_ptr<RobustKernel> kernel) {
+                     auto te = TransformationEstimationFor2DGeneralizedICP();
+                     te.kernel_ = std::move(kernel);
+                     return te;
+                 }),
+                 "kernel"_a)
+            .def("__repr__",
+                 [](const TransformationEstimationFor2DGeneralizedICP &te) {
+                     return std::string(
+                                    "TransformationEstimationFor2DGeneralizedICP"
+                                    " ") +
+                            ("with epsilon=" + std::to_string(te.epsilon_));
+                 })
+            .def_readwrite("epsilon",
+                           &TransformationEstimationFor2DGeneralizedICP::epsilon_,
+                           "epsilon")
+            .def_readwrite("kernel",
+                           &TransformationEstimationFor2DGeneralizedICP::kernel_,
+                           "Robust Kernel used in the Optimization");
+
     // open3d.registration.CorrespondenceChecker
     py::class_<CorrespondenceChecker,
                PyCorrespondenceChecker<CorrespondenceChecker>>
@@ -566,6 +609,7 @@ static const std::unordered_map<std::string, std::string>
                  "(``TransformationEstimationPointToPoint``, "
                  "``TransformationEstimationPointToPlane``, "
                  "``TransformationEstimationForGeneralizedICP``, "
+                 "``TransformationEstimationFor2DGeneralizedICP``, "
                  "``TransformationEstimationForColoredICP``)"},
                 {"init", "Initial transformation estimation"},
                 {"lambda_geometric", "lambda_geometric value"},
@@ -593,6 +637,16 @@ void pybind_registration_methods(py::module &m) {
           "source"_a, "target"_a, "max_correspondence_distance"_a,
           "transformation"_a = Eigen::Matrix4d::Identity());
     docstring::FunctionDocInject(m, "evaluate_registration",
+                                 map_shared_argument_docstrings);
+
+    m.def("registration_2d_icp", &Registration2DICP,
+          py::call_guard<py::gil_scoped_release>(),
+          "Function for 2D ICP registration", "source"_a, "target"_a,
+          "max_correspondence_distance"_a,
+          "init"_a = Eigen::Matrix4d::Identity(),
+          "estimation_method"_a = TransformationEstimationFor2DGeneralizedICP(1e-3),
+          "criteria"_a = ICPConvergenceCriteria());
+    docstring::FunctionDocInject(m, "registration_2d_icp",
                                  map_shared_argument_docstrings);
 
     m.def("registration_icp", &RegistrationICP,
@@ -624,6 +678,17 @@ void pybind_registration_methods(py::module &m) {
                   TransformationEstimationForGeneralizedICP(1e-3),
           "criteria"_a = ICPConvergenceCriteria());
     docstring::FunctionDocInject(m, "registration_generalized_icp",
+                                 map_shared_argument_docstrings);
+
+    m.def("registration_2d_generalized_icp", &Registration2DGeneralizedICP,
+          py::call_guard<py::gil_scoped_release>(),
+          "Function for 2D Generalized ICP registration", "source"_a, "target"_a,
+          "max_correspondence_distance"_a,
+          "init"_a = Eigen::Matrix4d::Identity(),
+          "estimation_method"_a =
+                  TransformationEstimationFor2DGeneralizedICP(1e-3),
+          "criteria"_a = ICPConvergenceCriteria());
+    docstring::FunctionDocInject(m, "registration_2d_generalized_icp",
                                  map_shared_argument_docstrings);
 
     m.def("registration_ransac_based_on_correspondence",
@@ -674,6 +739,16 @@ void pybind_registration_methods(py::module &m) {
           "option"_a = FastGlobalRegistrationOption());
     docstring::FunctionDocInject(m,
                                  "registration_fgr_based_on_feature_matching",
+                                 map_shared_argument_docstrings);
+
+    m.def("get_information_matrix_from_2d_point_clouds",
+          &GetInformationMatrixFrom2DPointClouds,
+          py::call_guard<py::gil_scoped_release>(),
+          "Function for computing information matrix from transformation "
+          "matrix considering the xy plane only",
+          "source"_a, "target"_a, "max_correspondence_distance"_a,
+          "transformation"_a);
+    docstring::FunctionDocInject(m, "get_information_matrix_from_2d_point_clouds",
                                  map_shared_argument_docstrings);
 
     m.def("get_information_matrix_from_point_clouds",
