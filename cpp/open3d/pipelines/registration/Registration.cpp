@@ -128,7 +128,7 @@ RegistrationResult Registration2DICP(
          TransformationEstimationType::Generalized2DICP) &&
         (!target.HasCovariances() || !source.HasCovariances())) {
         utility::LogError(
-                "TransformationEstimationFor2DGeneralizedICP require "
+                "TransformationEstimationFor2DGeneralizedICP requires "
                 "pre-computed per point covariances matrices for source and "
                 "target PointCloud.");
     }

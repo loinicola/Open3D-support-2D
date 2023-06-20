@@ -30,6 +30,14 @@ class PoseGraph;
 ///    M. Lourakis,
 ///    SBA: A Software Package for Generic Sparse Bundle Adjustment,
 ///    Transactions on Mathematical Software, 2009
+void GlobalOptimizationSingleIteration(
+        PoseGraph &pose_graph,
+        const GlobalOptimizationMethod &method =
+                GlobalOptimizationLevenbergMarquardt(),
+        const GlobalOptimizationConvergenceCriteria &criteria =
+                GlobalOptimizationConvergenceCriteria(),
+        const GlobalOptimizationOption &option = GlobalOptimizationOption());
+
 void GlobalOptimization(
         PoseGraph &pose_graph,
         const GlobalOptimizationMethod &method =

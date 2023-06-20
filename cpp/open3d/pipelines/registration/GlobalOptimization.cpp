@@ -677,6 +677,24 @@ void GlobalOptimizationLevenbergMarquardt::OptimizePoseGraph(
                       timer_overall.GetDurationInSecond());
 }
 
+void GlobalOptimizationSingleIteration(PoseGraph &pose_graph,
+                        const GlobalOptimizationMethod &method
+                        /* = GlobalOptimizationLevenbergMarquardt() */,
+                        const GlobalOptimizationConvergenceCriteria &criteria
+                        /* = GlobalOptimizationConvergenceCriteria() */,
+                        const GlobalOptimizationOption &option
+                        /* = GlobalOptimizationOption() */) {
+    if (!ValidatePoseGraph(pose_graph)) return;
+    std::shared_ptr<PoseGraph> pose_graph_pre = std::make_shared<PoseGraph>();
+    *pose_graph_pre = pose_graph;
+    method.OptimizePoseGraph(*pose_graph_pre, criteria, option);
+    auto pose_graph_pre_pruned =
+            CreatePoseGraphWithoutInvalidEdges(*pose_graph_pre, option);
+    CompensateReferencePoseGraphNode(*pose_graph_pre_pruned, pose_graph,
+                                     option.reference_node_);
+    pose_graph = *pose_graph_pre_pruned;
+}
+
 void GlobalOptimization(PoseGraph &pose_graph,
                         const GlobalOptimizationMethod &method
                         /* = GlobalOptimizationLevenbergMarquardt() */,

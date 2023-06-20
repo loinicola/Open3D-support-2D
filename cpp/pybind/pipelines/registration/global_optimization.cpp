@@ -306,6 +306,16 @@ void pybind_global_optimization(py::module &m) {
 
 void pybind_global_optimization_methods(py::module &m) {
     m.def(
+            "global_optimization_single_iteration",
+            [](PoseGraph &pose_graph, const GlobalOptimizationMethod &method,
+               const GlobalOptimizationConvergenceCriteria &criteria,
+               const GlobalOptimizationOption &option) {
+                GlobalOptimizationSingleIteration(pose_graph, method, criteria, option);
+            },
+            "Function to optimize PoseGraph without a second iteration refinement", 
+            "pose_graph"_a, "method"_a,
+            "criteria"_a, "option"_a)
+     .def(
             "global_optimization",
             [](PoseGraph &pose_graph, const GlobalOptimizationMethod &method,
                const GlobalOptimizationConvergenceCriteria &criteria,
@@ -314,6 +324,16 @@ void pybind_global_optimization_methods(py::module &m) {
             },
             "Function to optimize PoseGraph", "pose_graph"_a, "method"_a,
             "criteria"_a, "option"_a);
+    docstring::FunctionDocInject(
+            m, "global_optimization_single_iteration",
+            {{"pose_graph", "The pose_graph to be optimized (in-place)."},
+             {"method",
+              "Global optimization method. Either "
+              "``GlobalOptimizationGaussNewton()`` or "
+              "``GlobalOptimizationLevenbergMarquardt("
+              ")``."},
+             {"criteria", "Global optimization convergence criteria."},
+             {"option", "Global optimization option."}});
     docstring::FunctionDocInject(
             m, "global_optimization",
             {{"pose_graph", "The pose_graph to be optimized (in-place)."},
