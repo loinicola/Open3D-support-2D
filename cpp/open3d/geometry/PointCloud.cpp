@@ -109,6 +109,53 @@ PointCloud &PointCloud::Transform2D(const Eigen::Matrix4d &transformation) {
     return *this;
 }
 
+PointCloud &PointCloud::TransformRigid2DIndexes(const Eigen::Matrix4d &transformation, 
+                                                uint32_t start_index, uint32_t end_index,
+                                                bool points_only) {
+
+    if (start_index > end_index) {
+        utility::LogError(
+                "TransformRigid2DIndexes requires "
+                "start_index {} to be <= end_index {}.", start_index, end_index);
+    }
+    if (end_index >= points_.size()) {
+        utility::LogError(
+                "TransformRigid2DIndexes requires "
+                "end_index {} to be < points_.size() {}.", end_index, points_.size());
+    }
+
+    Eigen::Vector2d translation_2d = transformation.block<2, 1>(0, 3);
+    Eigen::Matrix2d rotation_2d = transformation.block<2, 2>(0, 0);
+    Eigen::Matrix2d rotation_2d_transpose = rotation_2d.transpose();
+
+
+    for (uint32_t index = start_index; index <= end_index; index++) {
+        points_[index].head<2>() = Eigen::Vector2d(rotation_2d(0, 0) * points_[index](0) + 
+                                          rotation_2d(0, 1) * points_[index](1) + 
+                                          translation_2d(0),
+                                          rotation_2d(1, 0) * points_[index](0) + 
+                                          rotation_2d(1, 1) * points_[index](1) + 
+                                          translation_2d(1));
+    }
+
+    if (HasNormals() && !points_only) {
+        for (uint32_t index = start_index; index <= end_index; index++) {
+            normals_[index].head<2>() = Eigen::Vector2d(rotation_2d(0, 0) * normals_[index](0) + 
+                                            rotation_2d(0, 1) * normals_[index](1),
+                                            rotation_2d(1, 0) * normals_[index](0) + 
+                                            rotation_2d(1, 1) * normals_[index](1));
+        }
+    }
+
+    if (HasCovariances() && !points_only) {
+        for (uint32_t index = start_index; index <= end_index; index++) {
+            covariances_[index].block<2,2>(0,0) = rotation_2d * covariances_[index].block<2,2>(0,0) * rotation_2d_transpose;
+        }
+    }
+
+    return *this;
+}
+
 PointCloud &PointCloud::Transform(const Eigen::Matrix4d &transformation) {
     TransformPoints(transformation, points_);
     TransformNormals(transformation, normals_);
@@ -296,6 +343,22 @@ std::shared_ptr<PointCloud> PointCloud::SelectByIndex(
 
 // helper classes for VoxelDownSample and VoxelDownSampleAndTrace
 namespace {
+class AccumulatedPointCoordinates {
+public:
+    void AddPoint(const PointCloud &cloud, int index) {
+        point_.head(2) += cloud.points_[index].head(2);
+        num_of_points_++;
+    }
+
+    Eigen::Vector3d GetAveragePoint() const {
+        return point_ / double(num_of_points_);
+    }
+
+public:
+    int num_of_points_ = 0;
+    Eigen::Vector3d point_ = Eigen::Vector3d::Zero();
+};
+
 class AccumulatedPoint {
 public:
     void AddPoint(const PointCloud &cloud, int index) {
@@ -402,6 +465,77 @@ private:
     std::unordered_map<int, int> classes;
 };
 }  // namespace
+
+std::shared_ptr<PointCloud> PointCloud::VoxelDownSample2DCoordinatesOnly(
+        double voxel_size) const {
+    auto output = std::make_shared<PointCloud>();
+    if (voxel_size <= 0.0) {
+        utility::LogError("voxel_size <= 0.");
+    }
+    Eigen::Vector3d voxel_size3 =
+            Eigen::Vector3d(voxel_size, voxel_size, voxel_size);
+    Eigen::Vector3d voxel_min_bound = GetMinBound() - voxel_size3 * 0.5;
+    Eigen::Vector3d voxel_max_bound = GetMaxBound() + voxel_size3 * 0.5;
+    if (voxel_size * std::numeric_limits<int>::max() <
+        (voxel_max_bound - voxel_min_bound).maxCoeff()) {
+        utility::LogError("voxel_size is too small.");
+    }
+    std::unordered_map<Eigen::Vector2i, AccumulatedPointCoordinates,
+                       utility::hash_eigen<Eigen::Vector2i>>
+            voxelindex_to_accpoint;
+
+    Eigen::Vector3d ref_coord;
+    Eigen::Vector2i voxel_index;
+    double inv_voxel_size = 1.0 / voxel_size;
+    for (int i = 0; i < (int)points_.size(); i++) {
+        ref_coord = (points_[i] - voxel_min_bound) * inv_voxel_size;
+        voxel_index << int(floor(ref_coord(0))), int(floor(ref_coord(1)));
+        // voxelindex_to_accpoint[voxel_index].AddPoint(*this, i);
+        voxelindex_to_accpoint[voxel_index].point_.head(2) += points_[i].head(2);
+        voxelindex_to_accpoint[voxel_index].num_of_points_++;
+    }
+
+    // bool has_normals = HasNormals();
+    // bool has_colors = HasColors();
+    // bool has_covariances = HasCovariances();
+
+    // std::size_t reserve_size = voxelindex_to_accpoint.size();
+
+    output->points_.reserve(voxelindex_to_accpoint.size());
+    // output->points_.reserve(reserve_size);
+    // if (has_normals) {
+    //     output->normals_.reserve(reserve_size);
+    // }
+    // if (has_colors) {
+    //     output->colors_.reserve(reserve_size);
+    // }
+    // if (has_covariances) {
+    //     output->covariances_.reserve(reserve_size);
+    // }
+    
+    for (auto accpoint : voxelindex_to_accpoint) {
+        // double inv_num_points_ = 1.0 / accpoint.second.num_of_points_;
+
+        // accpoint.second.point_/ inv_num_points_;
+        output->points_.emplace_back(accpoint.second.point_/accpoint.second.num_of_points_);
+        // if (has_normals) {
+        //     accpoint.second.normal_.head(2) *= inv_num_points_;
+        //     output->normals_.emplace_back(accpoint.second.normal_);
+        // }
+        // if (has_colors) {
+        //     accpoint.second.color_ *= inv_num_points_;
+        //     output->colors_.emplace_back(accpoint.second.color_);
+        // }
+        // if (has_covariances) {
+        //     accpoint.second.covariance_.block<2,2>(0,0) *= inv_num_points_;
+        //     output->covariances_.emplace_back(accpoint.second.covariance_);
+        // }
+    }
+    utility::LogDebug(
+            "Pointcloud down sampled from {:d} points to {:d} points.",
+            (int)points_.size(), (int)output->points_.size());
+    return output;
+}
 
 std::shared_ptr<PointCloud> PointCloud::VoxelDownSample(
         double voxel_size) const {

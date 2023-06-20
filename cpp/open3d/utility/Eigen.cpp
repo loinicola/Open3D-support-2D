@@ -336,6 +336,7 @@ Eigen::Matrix3d Compute2DCovariance(const std::vector<Eigen::Vector3d> &points,
     covariance(1, 1) = cumulants(4) - cumulants(1) * cumulants(1);
     covariance(0, 1) = cumulants(3) - cumulants(0) * cumulants(1);
     covariance(1, 0) = covariance(0, 1);
+    covariance(2, 2) = Z_VARIANCE_2D_POINTCLOUD;
     return covariance;
 }
 

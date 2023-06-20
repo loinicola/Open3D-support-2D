@@ -42,6 +42,12 @@ using Vector3d_allocator = Eigen::aligned_allocator<Eigen::Vector3d>;
 using Vector4d_allocator = Eigen::aligned_allocator<Eigen::Vector4d>;
 using Vector6d_allocator = Eigen::aligned_allocator<Eigen::Vector6d>;
 
+// For point clouds used with 2D functions where only the xy plane is considered. 
+// To be coherent with other 3D functions, covariance(2,2) should be >> (way greater) 
+// than the other matrix elements. Now just put a constant to be faster, 
+// but should be something like k*max(covariance(0,0), covariance(1,1)) with k>>0.
+const double Z_VARIANCE_2D_POINTCLOUD = 10.0;
+
 /// Genretate a skew-symmetric matrix from a vector 3x1.
 Eigen::Matrix3d SkewMatrix(const Eigen::Vector3d &vec);
 

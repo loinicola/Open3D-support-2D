@@ -38,8 +38,8 @@ void pybind_pointcloud(py::module &m) {
                  })
             .def(py::self + py::self)
             .def(py::self += py::self)
-            // Nicola's comment: TransformRigid2D and Transform2D 
-            // are not declared in Geometry3D.h together with the 
+            // Nicola's comment: TransformRigid2D, TransformRigid2DIndexes
+            // and Transform2D are not declared in Geometry3D.h together with the 
             // original Transform function but in PointCloud.h 
             // since they are not virtual functions 
             // (they are not being overriden in other classes, 
@@ -47,10 +47,15 @@ void pybind_pointcloud(py::module &m) {
             // in PointCloud only)
             .def("transform_rigid_2d", &PointCloud::TransformRigid2D,
                  "Apply rigid transformation (4x4 matrix) to the geometry "
-                 "coordinates, but only in the x-y plane.") 
+                 "coordinates, but only in the xy plane.")
+            .def("transform_rigid_2d_indexes", &PointCloud::TransformRigid2DIndexes,
+                 "Apply rigid transformation (4x4 matrix) to the geometry "
+                 "coordinates, but only in the xy plane for the points with "
+                 "index in [start_index, end_index]. Choose if the points "
+                 "coordinates only should be transformed.")
             .def("transform_2d", &PointCloud::Transform2D,
                  "Apply transformation (4x4 matrix) to the geometry "
-                 "coordinates, but only in the x-y plane.") 
+                 "coordinates, but only in the xy plane.") 
             .def("has_points", &PointCloud::HasPoints,
                  "Returns ``True`` if the point cloud contains points.")
             .def("has_normals", &PointCloud::HasNormals,
@@ -68,6 +73,11 @@ void pybind_pointcloud(py::module &m) {
                  "Function to select points from input pointcloud into output "
                  "pointcloud.",
                  "indices"_a, "invert"_a = false)
+            .def("voxel_down_sample_2d_coordinates", &PointCloud::VoxelDownSample2DCoordinatesOnly,
+                 "Function to downsample input pointcloud into output "
+                 "pointcloud with a voxel, but only in the xy plane "
+                 "and point coordinates only.",
+                 "voxel_size"_a)
             .def("voxel_down_sample", &PointCloud::VoxelDownSample,
                  "Function to downsample input pointcloud into output "
                  "pointcloud with "
@@ -283,6 +293,7 @@ camera. Given depth value d at (u, v) image coordinate, the corresponding 3d poi
                            "use ``numpy.asarray()`` to access data: Points "
                            "covariances.");
     docstring::ClassMethodDocInject(m, "PointCloud", "transform_rigid_2d");
+    docstring::ClassMethodDocInject(m, "PointCloud", "transform_rigid_2d_indexes");
     docstring::ClassMethodDocInject(m, "PointCloud", "transform_2d");
     docstring::ClassMethodDocInject(m, "PointCloud", "has_colors");
     docstring::ClassMethodDocInject(m, "PointCloud", "has_normals");

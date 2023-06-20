@@ -56,7 +56,7 @@ public:
     OrientedBoundingBox GetMinimalOrientedBoundingBox(
             bool robust = false) const override;
             
-    // Nicola's comment: TransformRigid2D and Transform2D 
+    // Nicola's comment: TransformRigid2D, TransformRigid2DIndexes and Transform2D 
     // are not declared in Geometry3D.h together with the 
     // original Transform function but in PointCloud.h 
     // since they are not virtual functions 
@@ -67,6 +67,13 @@ public:
     /// \brief Apply rigid transformation (4x4 matrix) to the geometry coordinates,
     /// but only in the x,y plane.
     PointCloud &TransformRigid2D(const Eigen::Matrix4d &transformation);
+    /// \brief Apply rigid transformation (4x4 matrix) to the geometry coordinates,
+    /// but only in the x,y plane for the points with index in [start_index, end_index].
+    /// Choose if the points coordinates only should be transformed.
+    PointCloud &TransformRigid2DIndexes(const Eigen::Matrix4d &transformation,
+                                        uint32_t start_index,
+                                        uint32_t end_index,
+                                        bool points_only = false);
     /// \brief Apply transformation (4x4 matrix) to the geometry coordinates,
     /// but only in the x,y plane.
     PointCloud &Transform2D(const Eigen::Matrix4d &transformation);
@@ -141,6 +148,13 @@ public:
     std::shared_ptr<PointCloud> SelectByIndex(
             const std::vector<size_t> &indices, bool invert = false) const;
 
+    /// \brief Downsample input pointcloud with a voxel but only in the xy plane
+    /// and point coordinates only.
+    ///
+    /// \param voxel_size Defines the resolution of the voxel grid,
+    /// smaller value leads to denser output point cloud.
+    std::shared_ptr<PointCloud> VoxelDownSample2DCoordinatesOnly(double voxel_size) const;
+    
     /// \brief Downsample input pointcloud with a voxel, and return a new
     /// point-cloud. Normals, covariances and colors are averaged if they exist.
     ///
