@@ -47,15 +47,21 @@ void pybind_pointcloud(py::module &m) {
             // in PointCloud only)
             .def("transform_rigid_2d", &PointCloud::TransformRigid2D,
                  "Apply rigid transformation (4x4 matrix) to the geometry "
-                 "coordinates, but only in the xy plane.")
+                 "coordinates, but only in the xy plane. Choose if the points "
+                 "coordinates only should be transformed.",
+                 "transformation"_a, "points_only"_a = false)
             .def("transform_rigid_2d_indexes", &PointCloud::TransformRigid2DIndexes,
                  "Apply rigid transformation (4x4 matrix) to the geometry "
                  "coordinates, but only in the xy plane for the points with "
                  "index in [start_index, end_index]. Choose if the points "
-                 "coordinates only should be transformed.")
+                 "coordinates only should be transformed.",
+                 "transformation"_a, "start_index"_a, "end_index"_a,
+                 "points_only"_a = false)
             .def("transform_2d", &PointCloud::Transform2D,
                  "Apply transformation (4x4 matrix) to the geometry "
-                 "coordinates, but only in the xy plane.") 
+                 "coordinates, but only in the xy plane. Choose if the points "
+                 "coordinates only should be transformed.",
+                 "transformation"_a, "points_only"_a = false)
             .def("has_points", &PointCloud::HasPoints,
                  "Returns ``True`` if the point cloud contains points.")
             .def("has_normals", &PointCloud::HasNormals,
@@ -69,6 +75,18 @@ void pybind_pointcloud(py::module &m) {
             .def("paint_uniform_color", &PointCloud::PaintUniformColor,
                  "color"_a,
                  "Assigns each point in the PointCloud the same color.")
+            .def("select_by_list_index_2", &PointCloud::SelectByListOfIndexRanges2,
+                 "Function to select points from input pointcloud into output "
+                 "pointcloud.",
+                 "list_indeces_ranges"_a, "invert"_a = false)
+            .def("select_by_list_index", &PointCloud::SelectByListOfIndexRanges,
+                 "Function to select points from input pointcloud into output "
+                 "pointcloud.",
+                 "list_indeces_ranges"_a, "invert"_a = false)
+            .def("select_by_index_2", &PointCloud::SelectByIndexFast,
+                 "Function to select points from input pointcloud into output "
+                 "pointcloud.",
+                 "indices"_a, "invert"_a = false)
             .def("select_by_index", &PointCloud::SelectByIndex,
                  "Function to select points from input pointcloud into output "
                  "pointcloud.",

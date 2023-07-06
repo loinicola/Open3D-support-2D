@@ -66,7 +66,9 @@ public:
 
     /// \brief Apply rigid transformation (4x4 matrix) to the geometry coordinates,
     /// but only in the x,y plane.
-    PointCloud &TransformRigid2D(const Eigen::Matrix4d &transformation);
+    /// Choose if the points coordinates only should be transformed.
+    PointCloud &TransformRigid2D(const Eigen::Matrix4d &transformation,
+                                 bool points_only = false);
     /// \brief Apply rigid transformation (4x4 matrix) to the geometry coordinates,
     /// but only in the x,y plane for the points with index in [start_index, end_index].
     /// Choose if the points coordinates only should be transformed.
@@ -76,7 +78,9 @@ public:
                                         bool points_only = false);
     /// \brief Apply transformation (4x4 matrix) to the geometry coordinates,
     /// but only in the x,y plane.
-    PointCloud &Transform2D(const Eigen::Matrix4d &transformation);
+    /// Choose if the points coordinates only should be transformed.
+    PointCloud &Transform2D(const Eigen::Matrix4d &transformation,
+                            bool points_only = false);
     PointCloud &Transform(const Eigen::Matrix4d &transformation) override;
     PointCloud &Translate(const Eigen::Vector3d &translation,
                           bool relative = true) override;
@@ -139,6 +143,30 @@ public:
     /// entries. It doesn't re-computes these attributes after removing
     /// duplicated points.
     PointCloud &RemoveDuplicatedPoints();
+
+    /// \brief Selects points from \p input pointcloud, with indices in \p
+    /// indices, and returns a new point-cloud with selected points.
+    ///
+    /// \param indices Indices of points to be selected.
+    /// \param invert Set to `True` to invert the selection of indices.
+    std::shared_ptr<PointCloud> SelectByListOfIndexRanges2(
+            const std::vector<std::pair<size_t,size_t>> &list_indeces_ranges, bool invert = false) const;
+
+    /// \brief Selects points from \p input pointcloud, with indices in \p
+    /// indices, and returns a new point-cloud with selected points.
+    ///
+    /// \param indices Indices of points to be selected.
+    /// \param invert Set to `True` to invert the selection of indices.
+    std::shared_ptr<PointCloud> SelectByListOfIndexRanges(
+            const std::vector<std::pair<size_t,size_t>> &list_indeces_ranges, bool invert = false) const;
+
+    /// \brief Selects points from \p input pointcloud, with indices in \p
+    /// indices, and returns a new point-cloud with selected points.
+    ///
+    /// \param indices Indices of points to be selected.
+    /// \param invert Set to `True` to invert the selection of indices.
+    std::shared_ptr<PointCloud> SelectByIndexFast(
+            const std::vector<size_t> &indices, bool invert = false) const;
 
     /// \brief Selects points from \p input pointcloud, with indices in \p
     /// indices, and returns a new point-cloud with selected points.

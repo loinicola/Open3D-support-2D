@@ -20,6 +20,7 @@
 #include "open3d/utility/Parallel.h"
 #include "open3d/utility/ProgressBar.h"
 #include "open3d/utility/Random.h"
+#include "PointCloud.h"
 
 namespace open3d {
 namespace geometry {
@@ -57,7 +58,8 @@ OrientedBoundingBox PointCloud::GetMinimalOrientedBoundingBox(
     return OrientedBoundingBox::CreateFromPointsMinimal(points_, robust);
 }
 
-PointCloud &PointCloud::TransformRigid2D(const Eigen::Matrix4d &transformation) {
+PointCloud &PointCloud::TransformRigid2D(const Eigen::Matrix4d &transformation,
+                                         bool points_only) {
 
     Eigen::Vector2d translation_2d = transformation.block<2, 1>(0, 3);
     Eigen::Matrix2d rotation_2d = transformation.block<2, 2>(0, 0);
@@ -77,6 +79,9 @@ PointCloud &PointCloud::TransformRigid2D(const Eigen::Matrix4d &transformation) 
                                           translation_2d(1));
     }
 
+    if (points_only) {
+        return *this;
+    }
     // Transform2DNormals(transformation_2d, normals_);
     for (auto& normal : normals_) {
         // Eigen::Vector3d new_normal =
@@ -96,7 +101,8 @@ PointCloud &PointCloud::TransformRigid2D(const Eigen::Matrix4d &transformation) 
     return *this;
 }
 
-PointCloud &PointCloud::Transform2D(const Eigen::Matrix4d &transformation) {
+PointCloud &PointCloud::Transform2D(const Eigen::Matrix4d &transformation,
+                                    bool points_only) {
     Eigen::Matrix3d transformation_2d;
     transformation_2d.block<2, 2>(0, 0) =
             transformation.block<2, 2>(0, 0);
@@ -104,6 +110,9 @@ PointCloud &PointCloud::Transform2D(const Eigen::Matrix4d &transformation) {
             transformation.block<2, 1>(0, 3);
     transformation_2d.block<1, 3>(2, 0) << Eigen::Array3d(0.0, 0.0, 1.0);
     Transform2DPoints(transformation_2d, points_);
+    if (points_only) {
+        return *this;
+    }
     Transform2DNormals(transformation_2d, normals_);
     Transform2DCovariances(transformation_2d, covariances_);
     return *this;
@@ -113,15 +122,15 @@ PointCloud &PointCloud::TransformRigid2DIndexes(const Eigen::Matrix4d &transform
                                                 uint32_t start_index, uint32_t end_index,
                                                 bool points_only) {
 
-    if (start_index > end_index) {
+    if (start_index >= end_index) {
         utility::LogError(
                 "TransformRigid2DIndexes requires "
-                "start_index {} to be <= end_index {}.", start_index, end_index);
+                "start_index {} to be < end_index {}.", start_index, end_index);
     }
-    if (end_index >= points_.size()) {
+    if (end_index > points_.size()) {
         utility::LogError(
                 "TransformRigid2DIndexes requires "
-                "end_index {} to be < points_.size() {}.", end_index, points_.size());
+                "end_index {} to be <= points_.size() {}.", end_index, points_.size());
     }
 
     Eigen::Vector2d translation_2d = transformation.block<2, 1>(0, 3);
@@ -129,7 +138,7 @@ PointCloud &PointCloud::TransformRigid2DIndexes(const Eigen::Matrix4d &transform
     Eigen::Matrix2d rotation_2d_transpose = rotation_2d.transpose();
 
 
-    for (uint32_t index = start_index; index <= end_index; index++) {
+    for (uint32_t index = start_index; index < end_index; index++) {
         points_[index].head<2>() = Eigen::Vector2d(rotation_2d(0, 0) * points_[index](0) + 
                                           rotation_2d(0, 1) * points_[index](1) + 
                                           translation_2d(0),
@@ -138,8 +147,12 @@ PointCloud &PointCloud::TransformRigid2DIndexes(const Eigen::Matrix4d &transform
                                           translation_2d(1));
     }
 
-    if (HasNormals() && !points_only) {
-        for (uint32_t index = start_index; index <= end_index; index++) {
+    if (points_only) {
+        return *this;
+    }
+
+    if (HasNormals()) {
+        for (uint32_t index = start_index; index < end_index; index++) {
             normals_[index].head<2>() = Eigen::Vector2d(rotation_2d(0, 0) * normals_[index](0) + 
                                             rotation_2d(0, 1) * normals_[index](1),
                                             rotation_2d(1, 0) * normals_[index](0) + 
@@ -147,8 +160,8 @@ PointCloud &PointCloud::TransformRigid2DIndexes(const Eigen::Matrix4d &transform
         }
     }
 
-    if (HasCovariances() && !points_only) {
-        for (uint32_t index = start_index; index <= end_index; index++) {
+    if (HasCovariances()) {
+        for (uint32_t index = start_index; index < end_index; index++) {
             covariances_[index].block<2,2>(0,0) = rotation_2d * covariances_[index].block<2,2>(0,0) * rotation_2d_transpose;
         }
     }
@@ -311,6 +324,115 @@ PointCloud &PointCloud::RemoveNonFinitePoints(bool remove_nan,
             (int)(old_point_num - k));
 
     return *this;
+}
+
+std::shared_ptr<PointCloud> PointCloud::SelectByListOfIndexRanges2(
+        const std::vector<std::pair<size_t,size_t>> &list_indeces_ranges, bool invert /* = false */) const {
+    auto output = std::make_shared<PointCloud>();
+    bool has_normals = HasNormals();
+    bool has_colors = HasColors();
+    bool has_covariance = HasCovariances();
+
+    size_t n_indeces = 0;
+    std::vector<bool> mask = std::vector<bool>(points_.size(), invert);
+    for (auto indeces_range : list_indeces_ranges) {
+        for (size_t i = indeces_range.first; i < indeces_range.second; i++){
+            mask[i] = !invert;
+        }
+        n_indeces += indeces_range.second - indeces_range.first;
+        // mask[i] = !invert;
+    }
+
+    output->points_.reserve(n_indeces);
+    if (has_normals) output->normals_.reserve(n_indeces);
+    if (has_colors) output->colors_.reserve(n_indeces);
+    if (has_covariance) output->covariances_.reserve(n_indeces);
+
+    for (size_t i = 0; i < points_.size(); i++) {
+        if (mask[i]) {
+            output->points_.emplace_back(points_[i]);
+            if (has_normals) output->normals_.emplace_back(normals_[i]);
+            if (has_colors) output->colors_.emplace_back(colors_[i]);
+            if (has_covariance) output->covariances_.emplace_back(covariances_[i]);
+        }
+    }
+
+    utility::LogDebug(
+            "Pointcloud down sampled from {:d} points to {:d} points.",
+            (int)points_.size(), (int)output->points_.size());
+
+    return output;
+}
+
+std::shared_ptr<PointCloud> PointCloud::SelectByListOfIndexRanges(
+        const std::vector<std::pair<size_t,size_t>> &list_indeces_ranges, bool invert /* = false */) const {
+    auto output = std::make_shared<PointCloud>();
+    bool has_normals = HasNormals();
+    bool has_colors = HasColors();
+    bool has_covariance = HasCovariances();
+
+    size_t n_indeces = 0;
+    std::vector<bool> mask = std::vector<bool>(points_.size(), invert);
+    for (auto indeces_range : list_indeces_ranges) {
+        std::fill(mask.begin() + indeces_range.first,
+                  mask.begin() + indeces_range.second, !invert);
+        n_indeces += indeces_range.second - indeces_range.first;
+        // mask[i] = !invert;
+    }
+
+    output->points_.reserve(n_indeces);
+    if (has_normals) output->normals_.reserve(n_indeces);
+    if (has_colors) output->colors_.reserve(n_indeces);
+    if (has_covariance) output->covariances_.reserve(n_indeces);
+
+    for (size_t i = 0; i < points_.size(); i++) {
+        if (mask[i]) {
+            output->points_.emplace_back(points_[i]);
+            if (has_normals) output->normals_.emplace_back(normals_[i]);
+            if (has_colors) output->colors_.emplace_back(colors_[i]);
+            if (has_covariance) output->covariances_.emplace_back(covariances_[i]);
+        }
+    }
+
+    utility::LogDebug(
+            "Pointcloud down sampled from {:d} points to {:d} points.",
+            (int)points_.size(), (int)output->points_.size());
+
+    return output;
+}
+
+
+std::shared_ptr<PointCloud> PointCloud::SelectByIndexFast(
+        const std::vector<size_t> &indices, bool invert /* = false */) const {
+    auto output = std::make_shared<PointCloud>();
+    bool has_normals = HasNormals();
+    bool has_colors = HasColors();
+    bool has_covariance = HasCovariances();
+
+    std::vector<bool> mask = std::vector<bool>(points_.size(), invert);
+    for (size_t i : indices) {
+        mask[i] = !invert;
+    }
+
+    output->points_.reserve(indices.size());
+    if (has_normals) output->normals_.reserve(indices.size());
+    if (has_colors) output->colors_.reserve(indices.size());
+    if (has_covariance) output->covariances_.reserve(indices.size());
+
+    for (size_t i = 0; i < points_.size(); i++) {
+        if (mask[i]) {
+            output->points_.emplace_back(points_[i]);
+            if (has_normals) output->normals_.emplace_back(normals_[i]);
+            if (has_colors) output->colors_.emplace_back(colors_[i]);
+            if (has_covariance) output->covariances_.emplace_back(covariances_[i]);
+        }
+    }
+
+    utility::LogDebug(
+            "Pointcloud down sampled from {:d} points to {:d} points.",
+            (int)points_.size(), (int)output->points_.size());
+
+    return output;
 }
 
 std::shared_ptr<PointCloud> PointCloud::SelectByIndex(
