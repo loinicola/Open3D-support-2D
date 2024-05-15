@@ -433,20 +433,10 @@ std::shared_ptr<TriangleMesh> TriangleMesh::FilterSmoothTaubin(
 
 std::shared_ptr<PointCloud> TriangleMesh::SamplePointsUniformlyImpl(
         size_t number_of_points,
-        std::vector<double> &triangle_areas,
-        double surface_area,
+        const std::vector<double> &triangle_areas,
         bool use_triangle_normal) {
-    if (surface_area <= 0) {
-        utility::LogError("Invalid surface area {}, it must be > 0.",
-                          surface_area);
-    }
-
-    // triangle areas to cdf
-    triangle_areas[0] /= surface_area;
-    for (size_t tidx = 1; tidx < triangles_.size(); ++tidx) {
-        triangle_areas[tidx] =
-                triangle_areas[tidx] / surface_area + triangle_areas[tidx - 1];
-    }
+    utility::random::DiscreteGenerator<size_t> triangle_index_generator(
+            triangle_areas.begin(), triangle_areas.end());
 
     // sample point cloud
     bool has_vert_normal = HasVertexNormals();
@@ -463,35 +453,30 @@ std::shared_ptr<PointCloud> TriangleMesh::SamplePointsUniformlyImpl(
     if (has_vert_color) {
         pcd->colors_.resize(number_of_points);
     }
-    size_t point_idx = 0;
-    for (size_t tidx = 0; tidx < triangles_.size(); ++tidx) {
-        size_t n = size_t(std::round(triangle_areas[tidx] * number_of_points));
-        while (point_idx < n) {
-            double r1 = uniform_generator();
-            double r2 = uniform_generator();
-            double a = (1 - std::sqrt(r1));
-            double b = std::sqrt(r1) * (1 - r2);
-            double c = std::sqrt(r1) * r2;
 
-            const Eigen::Vector3i &triangle = triangles_[tidx];
-            pcd->points_[point_idx] = a * vertices_[triangle(0)] +
-                                      b * vertices_[triangle(1)] +
-                                      c * vertices_[triangle(2)];
-            if (has_vert_normal && !use_triangle_normal) {
-                pcd->normals_[point_idx] = a * vertex_normals_[triangle(0)] +
-                                           b * vertex_normals_[triangle(1)] +
-                                           c * vertex_normals_[triangle(2)];
-            }
-            if (use_triangle_normal) {
-                pcd->normals_[point_idx] = triangle_normals_[tidx];
-            }
-            if (has_vert_color) {
-                pcd->colors_[point_idx] = a * vertex_colors_[triangle(0)] +
-                                          b * vertex_colors_[triangle(1)] +
-                                          c * vertex_colors_[triangle(2)];
-            }
-
-            point_idx++;
+    for (size_t point_idx = 0; point_idx < number_of_points; ++point_idx) {
+        double r1 = uniform_generator();
+        double r2 = uniform_generator();
+        double a = (1 - std::sqrt(r1));
+        double b = std::sqrt(r1) * (1 - r2);
+        double c = std::sqrt(r1) * r2;
+        size_t tidx = triangle_index_generator();
+        const Eigen::Vector3i &triangle = triangles_[tidx];
+        pcd->points_[point_idx] = a * vertices_[triangle(0)] +
+                                  b * vertices_[triangle(1)] +
+                                  c * vertices_[triangle(2)];
+        if (has_vert_normal && !use_triangle_normal) {
+            pcd->normals_[point_idx] = a * vertex_normals_[triangle(0)] +
+                                       b * vertex_normals_[triangle(1)] +
+                                       c * vertex_normals_[triangle(2)];
+        }
+        if (use_triangle_normal) {
+            pcd->normals_[point_idx] = triangle_normals_[tidx];
+        }
+        if (has_vert_color) {
+            pcd->colors_[point_idx] = a * vertex_colors_[triangle(0)] +
+                                      b * vertex_colors_[triangle(1)] +
+                                      c * vertex_colors_[triangle(2)];
         }
     }
 
@@ -507,12 +492,12 @@ std::shared_ptr<PointCloud> TriangleMesh::SamplePointsUniformly(
         utility::LogError("Input mesh has no triangles.");
     }
 
-    // Compute area of each triangle and sum surface area
+    // Compute area of each triangle
     std::vector<double> triangle_areas;
-    double surface_area = GetSurfaceArea(triangle_areas);
+    GetSurfaceArea(triangle_areas);
 
     return SamplePointsUniformlyImpl(number_of_points, triangle_areas,
-                                     surface_area, use_triangle_normal);
+                                     use_triangle_normal);
 }
 
 std::shared_ptr<PointCloud> TriangleMesh::SamplePointsPoissonDisk(
@@ -545,8 +530,7 @@ std::shared_ptr<PointCloud> TriangleMesh::SamplePointsPoissonDisk(
     std::shared_ptr<PointCloud> pcl;
     if (pcl_init == nullptr) {
         pcl = SamplePointsUniformlyImpl(size_t(init_factor * number_of_points),
-                                        triangle_areas, surface_area,
-                                        use_triangle_normal);
+                                        triangle_areas, use_triangle_normal);
     } else {
         pcl = std::make_shared<PointCloud>();
         pcl->points_ = pcl_init->points_;
@@ -1598,13 +1582,10 @@ void TriangleMesh::RemoveVerticesByMask(const std::vector<bool> &vertex_mask) {
 
 std::shared_ptr<TriangleMesh> TriangleMesh::SelectByIndex(
         const std::vector<size_t> &indices, bool cleanup) const {
-    if (HasTriangleUvs()) {
-        utility::LogWarning(
-                "[SelectByIndex] This mesh contains triangle uvs that are "
-                "not handled in this function");
-    }
     auto output = std::make_shared<TriangleMesh>();
+    bool has_triangle_material_ids = HasTriangleMaterialIds();
     bool has_triangle_normals = HasTriangleNormals();
+    bool has_triangle_uvs = HasTriangleUvs();
     bool has_vertex_normals = HasVertexNormals();
     bool has_vertex_colors = HasVertexColors();
 
@@ -1636,8 +1617,17 @@ std::shared_ptr<TriangleMesh> TriangleMesh::SelectByIndex(
         if (nvidx0 >= 0 && nvidx1 >= 0 && nvidx2 >= 0) {
             output->triangles_.push_back(
                     Eigen::Vector3i(nvidx0, nvidx1, nvidx2));
+            if (has_triangle_material_ids) {
+                output->triangle_material_ids_.push_back(
+                        triangle_material_ids_[tidx]);
+            }
             if (has_triangle_normals) {
                 output->triangle_normals_.push_back(triangle_normals_[tidx]);
+            }
+            if (has_triangle_uvs) {
+                output->triangle_uvs_.push_back(triangle_uvs_[tidx * 3 + 0]);
+                output->triangle_uvs_.push_back(triangle_uvs_[tidx * 3 + 1]);
+                output->triangle_uvs_.push_back(triangle_uvs_[tidx * 3 + 2]);
             }
         }
     }
